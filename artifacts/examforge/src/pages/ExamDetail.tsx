@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -539,7 +540,7 @@ function QuestionEditorForm({ form, onSave, onCancel, isPending }: { form: any, 
         )} />
 
         <div className="space-y-4">
-          <FormLabel>Options & Correct Answer <span className="text-destructive">*</span></FormLabel>
+          <Label>Options & Correct Answer <span className="text-destructive">*</span></Label>
           <FormField control={form.control} name="correctIndex" render={({ field }) => (
             <FormItem>
               <FormControl>
