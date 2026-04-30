@@ -184,6 +184,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Question" }
 
+  /exams/{examId}/questions/bulk:
+    post:
+      operationId: bulkImportQuestions
+      tags: [questions]
+      summary: Bulk import questions into an exam from a JSON array
+      parameters:
+        - in: path
+          name: examId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkImportQuestionsBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkImportResult" }
+
   /questions/{questionId}:
     patch:
       operationId: updateQuestion
@@ -405,6 +427,23 @@ components:
         reference: { type: string, nullable: true }
         repeatNote: { type: string, nullable: true }
       required: [prompt, options, correctIndex]
+
+    BulkImportQuestionsBody:
+      type: object
+      properties:
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: "#/components/schemas/CreateQuestionBody" }
+      required: [questions]
+
+    BulkImportResult:
+      type: object
+      properties:
+        insertedCount: { type: integer }
+        examId: { type: string }
+      required: [insertedCount, examId]
 
     UpdateQuestionBody:
       type: object

@@ -225,6 +225,42 @@ export const CreateQuestionBody = zod.object({
 });
 
 /**
+ * @summary Bulk import questions into an exam from a JSON array
+ */
+export const BulkImportQuestionsParams = zod.object({
+  examId: zod.coerce.string(),
+});
+
+export const bulkImportQuestionsBodyQuestionsItemOptionsMin = 2;
+export const bulkImportQuestionsBodyQuestionsItemOptionsMax = 8;
+
+export const bulkImportQuestionsBodyQuestionsItemCorrectIndexMin = 0;
+
+export const bulkImportQuestionsBodyQuestionsMax = 500;
+
+export const BulkImportQuestionsBody = zod.object({
+  questions: zod
+    .array(
+      zod.object({
+        topic: zod.string().nullish(),
+        prompt: zod.string().min(1),
+        options: zod
+          .array(zod.string().min(1))
+          .min(bulkImportQuestionsBodyQuestionsItemOptionsMin)
+          .max(bulkImportQuestionsBodyQuestionsItemOptionsMax),
+        correctIndex: zod
+          .number()
+          .min(bulkImportQuestionsBodyQuestionsItemCorrectIndexMin),
+        explanation: zod.string().nullish(),
+        reference: zod.string().nullish(),
+        repeatNote: zod.string().nullish(),
+      }),
+    )
+    .min(1)
+    .max(bulkImportQuestionsBodyQuestionsMax),
+});
+
+/**
  * @summary Update a question
  */
 export const UpdateQuestionParams = zod.object({

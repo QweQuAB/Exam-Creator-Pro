@@ -11,6 +11,8 @@ export * from "./attemptDetailStatus";
 export * from "./attemptQuestion";
 export * from "./attemptSummary";
 export * from "./attemptSummaryStatus";
+export * from "./bulkImportQuestionsBody";
+export * from "./bulkImportResult";
 export * from "./createExamBody";
 export * from "./createQuestionBody";
 export * from "./dashboardSummary";

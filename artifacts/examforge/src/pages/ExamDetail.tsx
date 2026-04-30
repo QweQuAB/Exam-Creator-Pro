@@ -6,8 +6,9 @@ import * as z from "zod";
 import { 
   BookOpen, Edit2, Plus, ArrowRight, Settings, Trash2, 
   AlertTriangle, Save, X, Target, History, TrendingUp,
-  Star
+  Star, Upload
 } from "lucide-react";
+import { BulkImportDialog } from "@/components/BulkImportDialog";
 import { 
   useGetExam, 
   useUpdateExam, 
@@ -68,6 +69,7 @@ export default function ExamDetail() {
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [showDeleteExam, setShowDeleteExam] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   // -- Queries --
   const { data: exam, isLoading: isLoadingExam } = useGetExam(examId!, { 
@@ -303,7 +305,10 @@ export default function ExamDetail() {
 
         <TabsContent value="questions" className="pt-6 space-y-6">
           {!showAddQuestion && !editingQuestionId && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2">
+                <Upload className="w-4 h-4" /> Import
+              </Button>
               <Button onClick={() => setShowAddQuestion(true)} className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Plus className="w-4 h-4" /> Add Question
               </Button>
@@ -416,10 +421,15 @@ export default function ExamDetail() {
               <div className="text-center py-16 border-2 border-dashed border-border/60 rounded-xl">
                 <Target className="mx-auto h-12 w-12 text-muted-foreground/40 mb-4" />
                 <h3 className="text-lg font-medium">No questions yet</h3>
-                <p className="text-muted-foreground mt-1 mb-4">Start building your exam by adding questions.</p>
-                <Button onClick={() => setShowAddQuestion(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
-                  <Plus className="w-4 h-4" /> Add First Question
-                </Button>
+                <p className="text-muted-foreground mt-1 mb-4">Start building your exam by adding questions one by one, or import a batch from a JSON file.</p>
+                <div className="flex items-center justify-center gap-2">
+                  <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2">
+                    <Upload className="w-4 h-4" /> Bulk Import
+                  </Button>
+                  <Button onClick={() => setShowAddQuestion(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+                    <Plus className="w-4 h-4" /> Add First Question
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -513,6 +523,8 @@ export default function ExamDetail() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <BulkImportDialog open={showImport} onOpenChange={setShowImport} examId={examId!} />
     </div>
   );
 }

@@ -19,6 +19,8 @@ import type {
 import type {
   AttemptDetail,
   AttemptSummary,
+  BulkImportQuestionsBody,
+  BulkImportResult,
   CreateExamBody,
   CreateQuestionBody,
   DashboardSummary,
@@ -897,6 +899,93 @@ export const useCreateQuestion = <
   TContext
 > => {
   return useMutation(getCreateQuestionMutationOptions(options));
+};
+
+/**
+ * @summary Bulk import questions into an exam from a JSON array
+ */
+export const getBulkImportQuestionsUrl = (examId: string) => {
+  return `/api/exams/${examId}/questions/bulk`;
+};
+
+export const bulkImportQuestions = async (
+  examId: string,
+  bulkImportQuestionsBody: BulkImportQuestionsBody,
+  options?: RequestInit,
+): Promise<BulkImportResult> => {
+  return customFetch<BulkImportResult>(getBulkImportQuestionsUrl(examId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkImportQuestionsBody),
+  });
+};
+
+export const getBulkImportQuestionsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkImportQuestions>>,
+    TError,
+    { examId: string; data: BodyType<BulkImportQuestionsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkImportQuestions>>,
+  TError,
+  { examId: string; data: BodyType<BulkImportQuestionsBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkImportQuestions"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkImportQuestions>>,
+    { examId: string; data: BodyType<BulkImportQuestionsBody> }
+  > = (props) => {
+    const { examId, data } = props ?? {};
+
+    return bulkImportQuestions(examId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkImportQuestionsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkImportQuestions>>
+>;
+export type BulkImportQuestionsMutationBody = BodyType<BulkImportQuestionsBody>;
+export type BulkImportQuestionsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk import questions into an exam from a JSON array
+ */
+export const useBulkImportQuestions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkImportQuestions>>,
+    TError,
+    { examId: string; data: BodyType<BulkImportQuestionsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkImportQuestions>>,
+  TError,
+  { examId: string; data: BodyType<BulkImportQuestionsBody> },
+  TContext
+> => {
+  return useMutation(getBulkImportQuestionsMutationOptions(options));
 };
 
 /**

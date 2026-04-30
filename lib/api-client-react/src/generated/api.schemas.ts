@@ -75,6 +75,19 @@ export interface CreateQuestionBody {
   repeatNote?: string | null;
 }
 
+export interface BulkImportQuestionsBody {
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  questions: CreateQuestionBody[];
+}
+
+export interface BulkImportResult {
+  insertedCount: number;
+  examId: string;
+}
+
 export interface UpdateQuestionBody {
   topic?: string | null;
   /** @minLength 1 */

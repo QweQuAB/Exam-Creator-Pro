@@ -5,6 +5,7 @@ export type {
   AttemptQuestion,
   AttemptSummary,
   AttemptSummaryStatus,
+  BulkImportResult,
   DashboardSummary,
   DashboardSummaryTopExamsItem,
   Exam,
