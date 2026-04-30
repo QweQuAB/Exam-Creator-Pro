@@ -1,2 +1,21 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type {
+  AttemptDetail,
+  AttemptDetailStatus,
+  AttemptQuestion,
+  AttemptSummary,
+  AttemptSummaryStatus,
+  DashboardSummary,
+  DashboardSummaryTopExamsItem,
+  Exam,
+  ExamDetail,
+  ExamStats,
+  ExamStatsRepeatHotlistItem,
+  ExamStatsTopicBreakdownItem,
+  ExamWithCounts,
+  GetRecentAttemptsParams,
+  HealthStatus,
+  ListExamsParams,
+  Question,
+  SubmitAnswerResult,
+} from "./generated/types";
