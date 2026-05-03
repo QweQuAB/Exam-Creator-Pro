@@ -102,7 +102,7 @@ export default function ExamDetail() {
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [showDeleteExam, setShowDeleteExam] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
-  const [showImport, setShowImport] = useState(false);
+  const [showImport, setShowImport] = useState<"mcq" | "essay" | null>(null);
 
   // -- Queries --
   const { data: exam, isLoading: isLoadingExam } = useGetExam(examId!, {
@@ -583,14 +583,8 @@ export default function ExamDetail() {
         <TabsContent value="questions" className="pt-6 space-y-6">
           {!showAddQuestion && !editingQuestionId && (
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2">
+              <Button variant="outline" onClick={() => setShowImport("mcq")} className="gap-2">
                 <Upload className="w-4 h-4" /> Import MCQ
-              </Button>
-              <Button
-                onClick={() => setShowAddQuestion(true)}
-                className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
-              >
-                <Plus className="w-4 h-4" /> Add Question
               </Button>
             </div>
           )}
@@ -620,11 +614,14 @@ export default function ExamDetail() {
                 Add questions one by one, or import a batch from a JSON file.
               </p>
               <div className="flex items-center justify-center gap-2">
-                <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2">
+                <Button variant="outline" onClick={() => setShowImport("mcq")} className="gap-2">
                   <Upload className="w-4 h-4" /> Bulk Import
                 </Button>
                 <Button
-                  onClick={() => setShowAddQuestion(true)}
+                  onClick={() => {
+                    questionForm.reset({ ...DEFAULT_QUESTION, questionType: "mcq" });
+                    setShowAddQuestion(true);
+                  }}
                   className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
                 >
                   <Plus className="w-4 h-4" /> Add First MCQ
@@ -649,6 +646,20 @@ export default function ExamDetail() {
               </TabsList>
 
               <TabsContent value="section-a" className="space-y-4">
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowImport("mcq")} className="gap-2">
+                    <Upload className="w-4 h-4" /> Import MCQ
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      questionForm.reset({ ...DEFAULT_QUESTION, questionType: "mcq" });
+                      setShowAddQuestion(true);
+                    }}
+                    className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    <Plus className="w-4 h-4" /> Add MCQ
+                  </Button>
+                </div>
                 {mcqQuestions.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-border/60 rounded-xl">
                     <FileText className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
@@ -662,6 +673,25 @@ export default function ExamDetail() {
               </TabsContent>
 
               <TabsContent value="section-b" className="space-y-4">
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowImport("essay")} className="gap-2">
+                    <Upload className="w-4 h-4" /> Import Essay
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      questionForm.reset({
+                        ...DEFAULT_QUESTION,
+                        questionType: "essay",
+                        options: [],
+                        correctIndex: undefined,
+                      });
+                      setShowAddQuestion(true);
+                    }}
+                    className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    <Plus className="w-4 h-4" /> Add Essay
+                  </Button>
+                </div>
                 {essayQuestions.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-border/60 rounded-xl">
                     <PenLine className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
@@ -826,7 +856,12 @@ export default function ExamDetail() {
         </TabsContent>
       </Tabs>
 
-      <BulkImportDialog open={showImport} onOpenChange={setShowImport} examId={examId!} />
+      <BulkImportDialog
+        open={showImport !== null}
+        onOpenChange={(open) => setShowImport(open ? (showImport ?? "mcq") : null)}
+        examId={examId!}
+        questionType={showImport ?? "mcq"}
+      />
     </div>
   );
 }
