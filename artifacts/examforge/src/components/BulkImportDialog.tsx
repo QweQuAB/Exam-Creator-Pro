@@ -13,20 +13,23 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   examId: string;
+  questionType?: "mcq" | "essay";
 };
 
 type RawQuestion = {
+  questionType?: "mcq" | "essay";
   topic?: string | null;
   prompt: string;
-  options: string[];
-  correctIndex: number;
+  options?: string[];
+  correctIndex?: number;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;
 };
 
-const TEMPLATE: RawQuestion[] = [
+const MCQ_TEMPLATE: RawQuestion[] = [
   {
+    questionType: "mcq",
     topic: "Sample Topic",
     prompt: "What is the capital of Ghana?",
     options: ["Accra", "Lagos", "Nairobi", "Cairo"],
@@ -35,13 +38,15 @@ const TEMPLATE: RawQuestion[] = [
     reference: "Geography Ch. 2",
     repeatNote: "Appears 3 times in past papers",
   },
+];
+
+const ESSAY_TEMPLATE: RawQuestion[] = [
   {
+    questionType: "essay",
     topic: "Sample Topic",
-    prompt: "Which of these is a renewable energy source?",
-    options: ["Coal", "Solar", "Natural Gas", "Petroleum"],
-    correctIndex: 1,
-    explanation: "Solar energy from the sun is replenishable.",
-    reference: null,
+    prompt: "Discuss the main themes in African Studies.",
+    explanation: "Essay responses are graded by rubric.",
+    reference: "Syllabus overview",
     repeatNote: null,
   },
 ];
@@ -50,7 +55,7 @@ type ParseResult =
   | { ok: true; questions: RawQuestion[]; warnings: string[] }
   | { ok: false; error: string };
 
-function parseInput(text: string): ParseResult {
+function parseInput(text: string, questionType: "mcq" | "essay"): ParseResult {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, error: "Paste some JSON or upload a file." };
 
@@ -65,10 +70,7 @@ function parseInput(text: string): ParseResult {
   }
 
   if (!Array.isArray(data)) {
-    return {
-      ok: false,
-      error: "Top-level value must be a JSON array of question objects (start with [ and end with ]).",
-    };
+    return { ok: false, error: "Top-level value must be a JSON array of question objects (start with [ and end with ])." };
   }
 
   if (data.length === 0) {
@@ -81,50 +83,40 @@ function parseInput(text: string): ParseResult {
   for (let i = 0; i < data.length; i++) {
     const raw = data[i] as Record<string, unknown> | null;
     const idx = i + 1;
-    if (!raw || typeof raw !== "object") {
-      return { ok: false, error: `Question #${idx} is not an object.` };
-    }
+    if (!raw || typeof raw !== "object") return { ok: false, error: `Question #${idx} is not an object.` };
 
     const prompt = typeof raw.prompt === "string" ? raw.prompt.trim() : "";
-    if (!prompt) {
-      return { ok: false, error: `Question #${idx}: "prompt" is required and must be a non-empty string.` };
-    }
-
-    const options = Array.isArray(raw.options)
-      ? raw.options.map((o) => (typeof o === "string" ? o : String(o ?? "")))
-      : [];
-    if (options.length < 2) {
-      return { ok: false, error: `Question #${idx}: needs at least 2 options.` };
-    }
-    if (options.length > 8) {
-      return { ok: false, error: `Question #${idx}: maximum 8 options allowed.` };
-    }
-    if (options.some((o) => !o.trim())) {
-      return { ok: false, error: `Question #${idx}: all options must be non-empty.` };
-    }
-
-    const correctIndex = typeof raw.correctIndex === "number" ? raw.correctIndex : NaN;
-    if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
-      return {
-        ok: false,
-        error: `Question #${idx}: "correctIndex" must be an integer between 0 and ${options.length - 1} (option indices are 0-based).`,
-      };
-    }
+    if (!prompt) return { ok: false, error: `Question #${idx}: "prompt" is required and must be a non-empty string.` };
 
     const topic = typeof raw.topic === "string" ? raw.topic.trim() || null : null;
     const explanation = typeof raw.explanation === "string" ? raw.explanation.trim() || null : null;
     const reference = typeof raw.reference === "string" ? raw.reference.trim() || null : null;
     const repeatNote = typeof raw.repeatNote === "string" ? raw.repeatNote.trim() || null : null;
 
-    if (!explanation) warnings.push(`Q#${idx}: no explanation provided.`);
+    if (questionType === "mcq") {
+      const options = Array.isArray(raw.options)
+        ? raw.options.map((o) => (typeof o === "string" ? o : String(o ?? "")))
+        : [];
+      if (options.length < 2) return { ok: false, error: `Question #${idx}: needs at least 2 options.` };
+      if (options.length > 8) return { ok: false, error: `Question #${idx}: maximum 8 options allowed.` };
+      if (options.some((o) => !o.trim())) return { ok: false, error: `Question #${idx}: all options must be non-empty.` };
+      const correctIndex = typeof raw.correctIndex === "number" ? raw.correctIndex : NaN;
+      if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
+        return { ok: false, error: `Question #${idx}: "correctIndex" must be an integer between 0 and ${options.length - 1} (option indices are 0-based).` };
+      }
+      if (!explanation) warnings.push(`Q#${idx}: no explanation provided.`);
+      cleaned.push({ questionType, topic, prompt, options, correctIndex, explanation, reference, repeatNote });
+      continue;
+    }
 
-    cleaned.push({ topic, prompt, options, correctIndex, explanation, reference, repeatNote });
+    if (!explanation) warnings.push(`Q#${idx}: no rubric note provided.`);
+    cleaned.push({ questionType, topic, prompt, explanation, reference, repeatNote });
   }
 
   return { ok: true, questions: cleaned, warnings };
 }
 
-export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
+export function BulkImportDialog({ open, onOpenChange, examId, questionType = "mcq" }: Props) {
   const [text, setText] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,7 +131,8 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
     },
   });
 
-  const parsed = useMemo(() => parseInput(text), [text]);
+  const parsed = useMemo(() => parseInput(text, questionType), [text, questionType]);
+  const template = questionType === "mcq" ? MCQ_TEMPLATE : ESSAY_TEMPLATE;
 
   const handleFile = async (file: File) => {
     setServerError(null);
@@ -152,11 +145,11 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
   };
 
   const downloadTemplate = () => {
-    const blob = new Blob([JSON.stringify(TEMPLATE, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "examforge-questions-template.json";
+    a.download = questionType === "mcq" ? "examforge-mcq-template.json" : "examforge-essay-template.json";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -172,7 +165,6 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
         onSuccess: (result) => {
           setText("");
           onOpenChange(false);
-          // Small delay so the dialog closes cleanly
           setTimeout(() => {
             // eslint-disable-next-line no-alert
             alert(`Imported ${result.insertedCount} question(s) successfully.`);
@@ -182,7 +174,7 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
           const anyErr = err as unknown as { message?: string; response?: { data?: { error?: string } } };
           setServerError(anyErr?.response?.data?.error ?? anyErr?.message ?? "Import failed. Please try again.");
         },
-      }
+      },
     );
   };
 
@@ -199,11 +191,13 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl flex items-center gap-2">
-            <Upload className="w-5 h-5 text-accent" /> Bulk Import Questions
+            <Upload className="w-5 h-5 text-accent" /> Bulk Import {questionType === "mcq" ? "MCQ" : "Essay"} Questions
           </DialogTitle>
           <DialogDescription>
-            Paste a JSON array of questions or upload a <code className="px-1 py-0.5 rounded bg-muted text-xs">.json</code> file.
-            Use the template below as your starting point.
+            {questionType === "mcq"
+              ? "Paste a JSON array of MCQ questions or upload a .json file."
+              : "Paste a JSON array of essay questions or upload a .json file."}
+            <span className="block mt-1">Use the template below as your starting point.</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -214,8 +208,15 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
               <div className="text-sm">
                 <p className="font-medium">JSON template</p>
                 <p className="text-muted-foreground">
-                  Each question needs <code className="text-xs">prompt</code>, <code className="text-xs">options</code> (2–8 strings), and <code className="text-xs">correctIndex</code> (0-based).
-                  Optional fields: <code className="text-xs">topic</code>, <code className="text-xs">explanation</code>, <code className="text-xs">reference</code>, <code className="text-xs">repeatNote</code>.
+                  {questionType === "mcq" ? (
+                    <>
+                      Each question needs <code className="text-xs">prompt</code>, <code className="text-xs">options</code> (2–8 strings), and <code className="text-xs">correctIndex</code> (0-based).
+                    </>
+                  ) : (
+                    <>
+                      Each question needs <code className="text-xs">prompt</code>. Optional fields: <code className="text-xs">topic</code>, <code className="text-xs">explanation</code>, <code className="text-xs">reference</code>, <code className="text-xs">repeatNote</code>.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -224,17 +225,7 @@ export function BulkImportDialog({ open, onOpenChange, examId }: Props) {
             </Button>
           </div>
           <pre className="text-xs bg-background/80 border border-border/60 rounded p-3 overflow-x-auto max-h-48 overflow-y-auto">
-{`[
-  {
-    "topic": "Sample Topic",
-    "prompt": "What is the capital of Ghana?",
-    "options": ["Accra", "Lagos", "Nairobi", "Cairo"],
-    "correctIndex": 0,
-    "explanation": "Accra has been the capital since 1877.",
-    "reference": "Geography Ch. 2",
-    "repeatNote": "Appears 3 times in past papers"
-  }
-]`}
+{JSON.stringify(template, null, 2)}
           </pre>
         </div>
 

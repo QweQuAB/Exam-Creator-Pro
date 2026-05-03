@@ -584,7 +584,7 @@ export default function ExamDetail() {
           {!showAddQuestion && !editingQuestionId && (
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowImport(true)} className="gap-2">
-                <Upload className="w-4 h-4" /> Import
+                <Upload className="w-4 h-4" /> Import MCQ
               </Button>
               <Button
                 onClick={() => setShowAddQuestion(true)}
@@ -627,7 +627,7 @@ export default function ExamDetail() {
                   onClick={() => setShowAddQuestion(true)}
                   className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
                 >
-                  <Plus className="w-4 h-4" /> Add First Question
+                  <Plus className="w-4 h-4" /> Add First MCQ
                 </Button>
               </div>
             </div>
