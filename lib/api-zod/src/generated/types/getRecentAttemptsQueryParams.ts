@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface StartAttemptBody {
-  shuffleQuestions?: boolean;
-  shuffleOptions?: boolean;
-  userName?: string | null;
+export interface GetRecentAttemptsQueryParams {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
 }

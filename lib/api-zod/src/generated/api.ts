@@ -15,6 +15,59 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Get the currently authenticated user
+ */
+export const GetCurrentAuthUserHeader = zod.object({
+  Authorization: zod
+    .string()
+    .optional()
+    .describe("Opaque session token — `Bearer <sid>`."),
+});
+
+export const GetCurrentAuthUserResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.string(),
+      email: zod.string().nullable(),
+      firstName: zod.string().nullable(),
+      lastName: zod.string().nullable(),
+      profileImageUrl: zod.string().nullable(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+export const BeginBrowserLoginQueryParams = zod.object({
+  returnTo: zod.coerce.string().optional(),
+});
+
+/**
+ * @summary Exchange mobile OIDC code for a session token
+ */
+
+export const ExchangeMobileAuthorizationCodeBody = zod.object({
+  code: zod.string().min(1),
+  code_verifier: zod.string().min(1),
+  redirect_uri: zod.string().min(1),
+  state: zod.string().min(1),
+  nonce: zod.string().min(1).optional(),
+});
+
+export const ExchangeMobileAuthorizationCodeResponse = zod.object({
+  token: zod.string(),
+});
+
+/**
+ * @summary Delete a mobile session token
+ */
+export const LogoutMobileSessionResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * @summary Dashboard overview
  */
 export const GetDashboardResponse = zod.object({
@@ -53,11 +106,14 @@ export const GetRecentAttemptsResponseItem = zod.object({
   examId: zod.string(),
   examTitle: zod.string(),
   examCourseCode: zod.string().nullish(),
+  userId: zod.string().nullish(),
+  userName: zod.string().nullish(),
   startedAt: zod.coerce.date(),
   finishedAt: zod.coerce.date().nullish(),
   score: zod.number(),
   total: zod.number(),
   scorePct: zod.number(),
+  elapsedSeconds: zod.number().nullish(),
   status: zod.enum(["in_progress", "finished"]),
 });
 export const GetRecentAttemptsResponse = zod.array(
@@ -124,10 +180,11 @@ export const GetExamResponse = zod
         zod.object({
           id: zod.string(),
           examId: zod.string(),
+          questionType: zod.enum(["mcq", "essay"]),
           topic: zod.string().nullish(),
           prompt: zod.string(),
           options: zod.array(zod.string()),
-          correctIndex: zod.number(),
+          correctIndex: zod.number().nullish(),
           explanation: zod.string().nullish(),
           reference: zod.string().nullish(),
           repeatNote: zod.string().nullish(),
@@ -200,25 +257,60 @@ export const GetExamStatsResponse = zod.object({
 });
 
 /**
+ * @summary Fastest finishers leaderboard for an exam
+ */
+export const GetLeaderboardParams = zod.object({
+  examId: zod.coerce.string(),
+});
+
+export const getLeaderboardQueryLimitDefault = 20;
+export const getLeaderboardQueryLimitMax = 100;
+
+export const GetLeaderboardQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getLeaderboardQueryLimitMax)
+    .default(getLeaderboardQueryLimitDefault),
+});
+
+export const GetLeaderboardResponse = zod.object({
+  examId: zod.string(),
+  entries: zod.array(
+    zod.object({
+      rank: zod.number(),
+      attemptId: zod.string(),
+      userId: zod.string().nullish(),
+      userName: zod.string().nullish(),
+      score: zod.number(),
+      total: zod.number(),
+      scorePct: zod.number(),
+      elapsedSeconds: zod.number(),
+      finishedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
  * @summary Add a question to an exam
  */
 export const CreateQuestionParams = zod.object({
   examId: zod.coerce.string(),
 });
 
-export const createQuestionBodyOptionsMin = 2;
 export const createQuestionBodyOptionsMax = 8;
 
 export const createQuestionBodyCorrectIndexMin = 0;
 
 export const CreateQuestionBody = zod.object({
+  questionType: zod.enum(["mcq", "essay"]).optional(),
   topic: zod.string().nullish(),
   prompt: zod.string().min(1),
   options: zod
     .array(zod.string().min(1))
-    .min(createQuestionBodyOptionsMin)
-    .max(createQuestionBodyOptionsMax),
-  correctIndex: zod.number().min(createQuestionBodyCorrectIndexMin),
+    .max(createQuestionBodyOptionsMax)
+    .optional(),
+  correctIndex: zod.number().min(createQuestionBodyCorrectIndexMin).nullish(),
   explanation: zod.string().nullish(),
   reference: zod.string().nullish(),
   repeatNote: zod.string().nullish(),
@@ -231,7 +323,6 @@ export const BulkImportQuestionsParams = zod.object({
   examId: zod.coerce.string(),
 });
 
-export const bulkImportQuestionsBodyQuestionsItemOptionsMin = 2;
 export const bulkImportQuestionsBodyQuestionsItemOptionsMax = 8;
 
 export const bulkImportQuestionsBodyQuestionsItemCorrectIndexMin = 0;
@@ -242,15 +333,17 @@ export const BulkImportQuestionsBody = zod.object({
   questions: zod
     .array(
       zod.object({
+        questionType: zod.enum(["mcq", "essay"]).optional(),
         topic: zod.string().nullish(),
         prompt: zod.string().min(1),
         options: zod
           .array(zod.string().min(1))
-          .min(bulkImportQuestionsBodyQuestionsItemOptionsMin)
-          .max(bulkImportQuestionsBodyQuestionsItemOptionsMax),
+          .max(bulkImportQuestionsBodyQuestionsItemOptionsMax)
+          .optional(),
         correctIndex: zod
           .number()
-          .min(bulkImportQuestionsBodyQuestionsItemCorrectIndexMin),
+          .min(bulkImportQuestionsBodyQuestionsItemCorrectIndexMin)
+          .nullish(),
         explanation: zod.string().nullish(),
         reference: zod.string().nullish(),
         repeatNote: zod.string().nullish(),
@@ -267,20 +360,19 @@ export const UpdateQuestionParams = zod.object({
   questionId: zod.coerce.string(),
 });
 
-export const updateQuestionBodyOptionsMin = 2;
 export const updateQuestionBodyOptionsMax = 8;
 
 export const updateQuestionBodyCorrectIndexMin = 0;
 
 export const UpdateQuestionBody = zod.object({
+  questionType: zod.enum(["mcq", "essay"]).optional(),
   topic: zod.string().nullish(),
   prompt: zod.string().min(1).optional(),
   options: zod
     .array(zod.string().min(1))
-    .min(updateQuestionBodyOptionsMin)
     .max(updateQuestionBodyOptionsMax)
     .optional(),
-  correctIndex: zod.number().min(updateQuestionBodyCorrectIndexMin).optional(),
+  correctIndex: zod.number().min(updateQuestionBodyCorrectIndexMin).nullish(),
   explanation: zod.string().nullish(),
   reference: zod.string().nullish(),
   repeatNote: zod.string().nullish(),
@@ -290,10 +382,11 @@ export const UpdateQuestionBody = zod.object({
 export const UpdateQuestionResponse = zod.object({
   id: zod.string(),
   examId: zod.string(),
+  questionType: zod.enum(["mcq", "essay"]),
   topic: zod.string().nullish(),
   prompt: zod.string(),
   options: zod.array(zod.string()),
-  correctIndex: zod.number(),
+  correctIndex: zod.number().nullish(),
   explanation: zod.string().nullish(),
   reference: zod.string().nullish(),
   repeatNote: zod.string().nullish(),
@@ -323,6 +416,7 @@ export const StartAttemptBody = zod.object({
     .boolean()
     .default(startAttemptBodyShuffleQuestionsDefault),
   shuffleOptions: zod.boolean().default(startAttemptBodyShuffleOptionsDefault),
+  userName: zod.string().nullish(),
 });
 
 /**
@@ -348,11 +442,14 @@ export const ListAttemptsForExamResponseItem = zod.object({
   examId: zod.string(),
   examTitle: zod.string(),
   examCourseCode: zod.string().nullish(),
+  userId: zod.string().nullish(),
+  userName: zod.string().nullish(),
   startedAt: zod.coerce.date(),
   finishedAt: zod.coerce.date().nullish(),
   score: zod.number(),
   total: zod.number(),
   scorePct: zod.number(),
+  elapsedSeconds: zod.number().nullish(),
   status: zod.enum(["in_progress", "finished"]),
 });
 export const ListAttemptsForExamResponse = zod.array(
@@ -371,17 +468,21 @@ export const GetAttemptResponse = zod.object({
   examId: zod.string(),
   examTitle: zod.string(),
   examCourseCode: zod.string().nullish(),
+  userId: zod.string().nullish(),
+  userName: zod.string().nullish(),
   startedAt: zod.coerce.date(),
   finishedAt: zod.coerce.date().nullish(),
   score: zod.number(),
   total: zod.number(),
   scorePct: zod.number(),
+  elapsedSeconds: zod.number().nullish(),
   status: zod.enum(["in_progress", "finished"]),
   questions: zod.array(
     zod
       .object({
         id: zod.string(),
         questionId: zod.string(),
+        questionType: zod.enum(["mcq", "essay"]),
         topic: zod.string().nullish(),
         prompt: zod.string(),
         options: zod.array(zod.string()),
@@ -390,6 +491,7 @@ export const GetAttemptResponse = zod.object({
         repeatNote: zod.string().nullish(),
         position: zod.number(),
         selectedIndex: zod.number().nullish(),
+        essayAnswer: zod.string().nullish(),
         correctIndex: zod.number().nullish(),
         isAnswered: zod.boolean(),
         isCorrect: zod.boolean().nullish(),
@@ -401,7 +503,7 @@ export const GetAttemptResponse = zod.object({
 });
 
 /**
- * @summary Submit an answer for one question in an attempt
+ * @summary Submit an answer (MCQ selection or essay text) for one question
  */
 export const SubmitAnswerParams = zod.object({
   attemptId: zod.coerce.string(),
@@ -411,14 +513,17 @@ export const submitAnswerBodySelectedIndexMin = 0;
 
 export const SubmitAnswerBody = zod.object({
   attemptQuestionId: zod.string(),
-  selectedIndex: zod.number().min(submitAnswerBodySelectedIndexMin),
+  selectedIndex: zod.number().min(submitAnswerBodySelectedIndexMin).nullish(),
+  essayAnswer: zod.string().nullish(),
 });
 
 export const SubmitAnswerResponse = zod.object({
   attemptQuestionId: zod.string(),
-  selectedIndex: zod.number(),
-  correctIndex: zod.number(),
-  isCorrect: zod.boolean(),
+  questionType: zod.enum(["mcq", "essay"]),
+  selectedIndex: zod.number().nullish(),
+  essayAnswer: zod.string().nullish(),
+  correctIndex: zod.number().nullish(),
+  isCorrect: zod.boolean().nullish(),
   score: zod.number(),
   total: zod.number(),
 });
@@ -435,17 +540,21 @@ export const FinishAttemptResponse = zod.object({
   examId: zod.string(),
   examTitle: zod.string(),
   examCourseCode: zod.string().nullish(),
+  userId: zod.string().nullish(),
+  userName: zod.string().nullish(),
   startedAt: zod.coerce.date(),
   finishedAt: zod.coerce.date().nullish(),
   score: zod.number(),
   total: zod.number(),
   scorePct: zod.number(),
+  elapsedSeconds: zod.number().nullish(),
   status: zod.enum(["in_progress", "finished"]),
   questions: zod.array(
     zod
       .object({
         id: zod.string(),
         questionId: zod.string(),
+        questionType: zod.enum(["mcq", "essay"]),
         topic: zod.string().nullish(),
         prompt: zod.string(),
         options: zod.array(zod.string()),
@@ -454,6 +563,7 @@ export const FinishAttemptResponse = zod.object({
         repeatNote: zod.string().nullish(),
         position: zod.number(),
         selectedIndex: zod.number().nullish(),
+        essayAnswer: zod.string().nullish(),
         correctIndex: zod.number().nullish(),
         isAnswered: zod.boolean(),
         isCorrect: zod.boolean().nullish(),

@@ -12,9 +12,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
+- **Validation**: Zod, drizzle-zod
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Auth**: Replit Auth (OIDC + PKCE, cookie sessions)
+- **Math rendering**: KaTeX
 
 ## Key Commands
 
@@ -28,19 +30,43 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Artifacts
 
-- **`artifacts/api-server`** — Shared Express API server mounted at `/api`. Routes for exams, questions, attempts, dashboard. All input/output validated with Zod schemas generated from `lib/api-spec/openapi.yaml`.
-- **`artifacts/examforge`** — ExamForge React + Vite app at `/`. Professional exam generator with MCQ creation, shuffled quiz attempts, results review, dashboard, and per-exam stats. Uses Wouter for routing and react-query hooks generated from the OpenAPI spec.
+- **`artifacts/api-server`** — Express API server at `/api`. All routes: health, auth (Replit OIDC), exams, questions, attempts, leaderboard, dashboard. Input/output validated with generated Zod schemas.
+- **`artifacts/examforge`** — ExamForge React + Vite web app at `/`. Full-featured exam study platform.
+
+## ExamForge Features
+
+- Create exams with MCQ and Essay (Section B) questions
+- Shuffled quiz taking with live timer (elapsed seconds tracked)
+- Section A / Section B tab split in quiz view
+- MCQ: immediate feedback, correct/incorrect reveal
+- Essay: free-text answer submission per question
+- KaTeX math rendering in prompts and options (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`)
+- Leaderboard per exam (fastest finishers, ranked)
+- Per-exam stats: attempt count, avg score, topic breakdown, repeat hotlist
+- Bulk import from JSON
+- Replit Auth login/logout with user avatar in header
+- ASP 401 African Studies seed data (15 MCQ past questions)
 
 ## Database (Drizzle)
 
-Schema lives in `lib/db/src/schema/exams.ts`:
+Schema in `lib/db/src/schema/exams.ts`:
 - `exams` (id, title, courseCode, institution, description)
-- `questions` (examId, topic, prompt, options[], correctIndex, explanation, reference, repeatNote, position)
-- `attempts` (examId, status enum, score, total, startedAt, finishedAt)
-- `attempt_questions` (attemptId, questionId, optionOrder[], correctIndex remapped, selectedIndex, isCorrect)
+- `questions` (examId, questionType enum[mcq|essay], topic, prompt, options[], correctIndex nullable, explanation, reference, repeatNote, position)
+- `attempts` (examId, userId, userName, status, score, total, elapsedSeconds, startedAt, finishedAt)
+- `attempt_questions` (attemptId, questionId, optionOrder[], correctIndex remapped, selectedIndex, essayAnswer, isCorrect)
+- `users` (id, email, firstName, lastName, profileImageUrl) — from auth
 
-`correctIndex` is never returned to the client until the user has answered the question.
+Auth schema in `lib/db/src/schema/auth.ts`.
+
+`correctIndex` is never returned to the client until the MCQ question has been answered. Essay questions have null correctIndex.
+
+## Auth
+
+- Browser: OIDC PKCE flow via `/api/login` → `/api/callback`, cookie session (`sid`)
+- Session data stored in DB via `lib/auth.ts` createSession/getSession
+- `authMiddleware` attaches `req.user` and `req.isAuthenticated()` to every request
+- `useAuth()` hook from `@workspace/replit-auth-web` — login/logout, user state
 
 ## Seed Data
 
-`pnpm --filter @workspace/scripts run seed-asp401` — seeds the ASP 401 (African Studies) exam with 15 past questions extracted from the attached HTML. Idempotent (skips if exam already exists).
+`pnpm --filter @workspace/scripts run seed-asp401` — seeds the ASP 401 (African Studies) exam with 15 past questions. Idempotent (skips if exam already exists).

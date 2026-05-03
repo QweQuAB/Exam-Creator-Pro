@@ -5,9 +5,8 @@
  * ExamForge — exam generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthUser } from "./authUser";
 
-export interface StartAttemptBody {
-  shuffleQuestions?: boolean;
-  shuffleOptions?: boolean;
-  userName?: string | null;
+export interface GetCurrentAuthUserResponse {
+  user: AuthUser | null;
 }

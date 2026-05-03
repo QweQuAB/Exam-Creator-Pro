@@ -5,12 +5,15 @@
  * ExamForge — exam generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { SubmitAnswerResultQuestionType } from "./submitAnswerResultQuestionType";
 
 export interface SubmitAnswerResult {
   attemptQuestionId: string;
-  selectedIndex: number;
-  correctIndex: number;
-  isCorrect: boolean;
+  questionType: SubmitAnswerResultQuestionType;
+  selectedIndex?: number | null;
+  essayAnswer?: string | null;
+  correctIndex?: number | null;
+  isCorrect?: boolean | null;
   score: number;
   total: number;
 }

@@ -5,18 +5,17 @@
  * ExamForge — exam generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateQuestionBodyQuestionType } from "./updateQuestionBodyQuestionType";
 
 export interface UpdateQuestionBody {
+  questionType?: UpdateQuestionBodyQuestionType;
   topic?: string | null;
   /** @minLength 1 */
   prompt?: string;
-  /**
-   * @minItems 2
-   * @maxItems 8
-   */
+  /** @maxItems 8 */
   options?: string[];
   /** @minimum 0 */
-  correctIndex?: number;
+  correctIndex?: number | null;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;

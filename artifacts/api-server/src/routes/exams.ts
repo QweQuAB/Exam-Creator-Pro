@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, desc, sql, and } from "drizzle-orm";
+import { eq, ilike, desc, sql, and, asc } from "drizzle-orm";
 import {
   db,
   examsTable,
@@ -10,6 +10,7 @@ import {
   CreateExamBody,
   UpdateExamBody,
   ListExamsQueryParams,
+  GetLeaderboardQueryParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -181,6 +182,57 @@ router.get("/exams/:examId/stats", async (req, res) => {
       repeatNote: r.repeatNote ?? "",
     })),
   });
+});
+
+router.get("/exams/:examId/leaderboard", async (req, res) => {
+  const examId = req.params.examId;
+  const params = GetLeaderboardQueryParams.parse(req.query);
+  const limit = params.limit ?? 20;
+
+  const [exam] = await db
+    .select({ id: examsTable.id })
+    .from(examsTable)
+    .where(eq(examsTable.id, examId));
+  if (!exam) {
+    res.status(404).json({ error: "Exam not found" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      id: attemptsTable.id,
+      userId: attemptsTable.userId,
+      userName: attemptsTable.userName,
+      score: attemptsTable.score,
+      total: attemptsTable.total,
+      elapsedSeconds: attemptsTable.elapsedSeconds,
+      finishedAt: attemptsTable.finishedAt,
+      startedAt: attemptsTable.startedAt,
+    })
+    .from(attemptsTable)
+    .where(
+      and(
+        eq(attemptsTable.examId, examId),
+        eq(attemptsTable.status, "finished"),
+        sql`${attemptsTable.elapsedSeconds} IS NOT NULL`,
+      ),
+    )
+    .orderBy(asc(attemptsTable.elapsedSeconds))
+    .limit(limit);
+
+  const entries = rows.map((r, i) => ({
+    rank: i + 1,
+    attemptId: r.id,
+    userId: r.userId,
+    userName: r.userName,
+    score: r.score,
+    total: r.total,
+    scorePct: r.total > 0 ? (r.score / r.total) * 100 : 0,
+    elapsedSeconds: r.elapsedSeconds!,
+    finishedAt: r.finishedAt!,
+  }));
+
+  res.json({ examId, entries });
 });
 
 export default router;

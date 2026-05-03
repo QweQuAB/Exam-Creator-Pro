@@ -9,6 +9,43 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface AuthUser {
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
+}
+
+export interface GetCurrentAuthUserResponse {
+  user: AuthUser | null;
+}
+
+export interface ExchangeMobileAuthorizationCodeBody {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  code_verifier: string;
+  /** @minLength 1 */
+  redirect_uri: string;
+  /** @minLength 1 */
+  state: string;
+  /** @minLength 1 */
+  nonce?: string;
+}
+
+export interface ExchangeMobileAuthorizationCodeResponse {
+  token: string;
+}
+
+export interface LogoutMobileSessionResponse {
+  success: boolean;
+}
+
 export interface Exam {
   id: string;
   title: string;
@@ -25,13 +62,22 @@ export type ExamWithCounts = Exam & {
   avgScorePct?: number | null;
 };
 
+export type QuestionQuestionType =
+  (typeof QuestionQuestionType)[keyof typeof QuestionQuestionType];
+
+export const QuestionQuestionType = {
+  mcq: "mcq",
+  essay: "essay",
+} as const;
+
 export interface Question {
   id: string;
   examId: string;
+  questionType: QuestionQuestionType;
   topic?: string | null;
   prompt: string;
   options: string[];
-  correctIndex: number;
+  correctIndex?: number | null;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;
@@ -59,17 +105,23 @@ export interface UpdateExamBody {
   description?: string | null;
 }
 
+export type CreateQuestionBodyQuestionType =
+  (typeof CreateQuestionBodyQuestionType)[keyof typeof CreateQuestionBodyQuestionType];
+
+export const CreateQuestionBodyQuestionType = {
+  mcq: "mcq",
+  essay: "essay",
+} as const;
+
 export interface CreateQuestionBody {
+  questionType?: CreateQuestionBodyQuestionType;
   topic?: string | null;
   /** @minLength 1 */
   prompt: string;
-  /**
-   * @minItems 2
-   * @maxItems 8
-   */
-  options: string[];
+  /** @maxItems 8 */
+  options?: string[];
   /** @minimum 0 */
-  correctIndex: number;
+  correctIndex?: number | null;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;
@@ -88,17 +140,23 @@ export interface BulkImportResult {
   examId: string;
 }
 
+export type UpdateQuestionBodyQuestionType =
+  (typeof UpdateQuestionBodyQuestionType)[keyof typeof UpdateQuestionBodyQuestionType];
+
+export const UpdateQuestionBodyQuestionType = {
+  mcq: "mcq",
+  essay: "essay",
+} as const;
+
 export interface UpdateQuestionBody {
+  questionType?: UpdateQuestionBodyQuestionType;
   topic?: string | null;
   /** @minLength 1 */
   prompt?: string;
-  /**
-   * @minItems 2
-   * @maxItems 8
-   */
+  /** @maxItems 8 */
   options?: string[];
   /** @minimum 0 */
-  correctIndex?: number;
+  correctIndex?: number | null;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;
@@ -108,7 +166,16 @@ export interface UpdateQuestionBody {
 export interface StartAttemptBody {
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
+  userName?: string | null;
 }
+
+export type AttemptQuestionQuestionType =
+  (typeof AttemptQuestionQuestionType)[keyof typeof AttemptQuestionQuestionType];
+
+export const AttemptQuestionQuestionType = {
+  mcq: "mcq",
+  essay: "essay",
+} as const;
 
 /**
  * Question rendered for a specific attempt; option order is shuffled per attempt.
@@ -116,6 +183,7 @@ export interface StartAttemptBody {
 export interface AttemptQuestion {
   id: string;
   questionId: string;
+  questionType: AttemptQuestionQuestionType;
   topic?: string | null;
   prompt: string;
   options: string[];
@@ -124,6 +192,7 @@ export interface AttemptQuestion {
   repeatNote?: string | null;
   position: number;
   selectedIndex?: number | null;
+  essayAnswer?: string | null;
   correctIndex?: number | null;
   isAnswered: boolean;
   isCorrect?: boolean | null;
@@ -142,11 +211,14 @@ export interface AttemptDetail {
   examId: string;
   examTitle: string;
   examCourseCode?: string | null;
+  userId?: string | null;
+  userName?: string | null;
   startedAt: string;
   finishedAt?: string | null;
   score: number;
   total: number;
   scorePct: number;
+  elapsedSeconds?: number | null;
   status: AttemptDetailStatus;
   questions: AttemptQuestion[];
 }
@@ -164,27 +236,58 @@ export interface AttemptSummary {
   examId: string;
   examTitle: string;
   examCourseCode?: string | null;
+  userId?: string | null;
+  userName?: string | null;
   startedAt: string;
   finishedAt?: string | null;
   score: number;
   total: number;
   scorePct: number;
+  elapsedSeconds?: number | null;
   status: AttemptSummaryStatus;
 }
 
 export interface SubmitAnswerBody {
   attemptQuestionId: string;
   /** @minimum 0 */
-  selectedIndex: number;
+  selectedIndex?: number | null;
+  essayAnswer?: string | null;
 }
+
+export type SubmitAnswerResultQuestionType =
+  (typeof SubmitAnswerResultQuestionType)[keyof typeof SubmitAnswerResultQuestionType];
+
+export const SubmitAnswerResultQuestionType = {
+  mcq: "mcq",
+  essay: "essay",
+} as const;
 
 export interface SubmitAnswerResult {
   attemptQuestionId: string;
-  selectedIndex: number;
-  correctIndex: number;
-  isCorrect: boolean;
+  questionType: SubmitAnswerResultQuestionType;
+  selectedIndex?: number | null;
+  essayAnswer?: string | null;
+  correctIndex?: number | null;
+  isCorrect?: boolean | null;
   score: number;
   total: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  attemptId: string;
+  userId?: string | null;
+  userName?: string | null;
+  score: number;
+  total: number;
+  scorePct: number;
+  elapsedSeconds: number;
+  finishedAt: string;
+}
+
+export interface LeaderboardResponse {
+  examId: string;
+  entries: LeaderboardEntry[];
 }
 
 export type ExamStatsTopicBreakdownItem = {
@@ -226,6 +329,35 @@ export interface DashboardSummary {
   topExams: DashboardSummaryTopExamsItem[];
 }
 
+export interface GetRecentAttemptsQueryParams {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+}
+
+export interface ListExamsQueryParams {
+  search?: string;
+}
+
+export interface ListAttemptsForExamQueryParams {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+}
+
+/**
+ * Opaque session token — `Bearer <sid>`.
+ */
+export type AuthorizationSessionHeaderParameter = string;
+
+export type BeginBrowserLoginParams = {
+  returnTo?: string;
+};
+
 export type GetRecentAttemptsParams = {
   /**
    * @minimum 1
@@ -236,6 +368,14 @@ export type GetRecentAttemptsParams = {
 
 export type ListExamsParams = {
   search?: string;
+};
+
+export type GetLeaderboardParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
 };
 
 export type ListAttemptsForExamParams = {

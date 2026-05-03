@@ -36,23 +36,37 @@ function serializeAttempt(
   const total = rows.length;
   const score = attempt.score;
   const scorePct = total > 0 ? (score / total) * 100 : 0;
+
+  const elapsedSeconds =
+    attempt.elapsedSeconds ??
+    (attempt.finishedAt
+      ? (attempt.finishedAt.getTime() - attempt.startedAt.getTime()) / 1000
+      : null);
+
   return {
     id: attempt.id,
     examId: attempt.examId,
     examTitle: exam.title,
     examCourseCode: exam.courseCode,
+    userId: attempt.userId,
+    userName: attempt.userName,
     startedAt: attempt.startedAt,
     finishedAt: attempt.finishedAt,
     score,
     total,
     scorePct,
+    elapsedSeconds,
     status: attempt.status,
     questions: rows.map(({ aq, q }) => {
-      const isAnswered = aq.selectedIndex !== null;
-      const orderedOptions = aq.optionOrder.map((idx) => q.options[idx]!);
+      const isEssay = q.questionType === "essay";
+      const isAnswered = isEssay
+        ? aq.essayAnswer !== null
+        : aq.selectedIndex !== null;
+      const orderedOptions = aq.optionOrder.map((idx) => q.options[idx] ?? "");
       return {
         id: aq.id,
         questionId: q.id,
+        questionType: q.questionType,
         topic: q.topic,
         prompt: q.prompt,
         options: orderedOptions,
@@ -61,10 +75,11 @@ function serializeAttempt(
         repeatNote: q.repeatNote,
         position: aq.position,
         selectedIndex: aq.selectedIndex,
-        // Reveal correctIndex only after the user has answered this question
-        correctIndex: isAnswered ? aq.correctIndex : null,
+        essayAnswer: aq.essayAnswer,
+        // Reveal correctIndex only after MCQ has been answered
+        correctIndex: !isEssay && isAnswered ? aq.correctIndex : null,
         isAnswered,
-        isCorrect: isAnswered ? aq.isCorrect === 1 : null,
+        isCorrect: isAnswered && !isEssay ? aq.isCorrect === 1 : null,
       };
     }),
   };
@@ -117,6 +132,12 @@ router.post("/exams/:examId/attempts", async (req, res) => {
   const body = StartAttemptBody.parse(req.body ?? {});
   const shuffleQs = body.shuffleQuestions ?? true;
   const shuffleOpts = body.shuffleOptions ?? true;
+  const userId = req.isAuthenticated() ? req.user.id : null;
+  const userName =
+    body.userName?.trim() ||
+    (req.isAuthenticated()
+      ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") || null
+      : null);
 
   const [exam] = await db
     .select()
@@ -144,6 +165,8 @@ router.post("/exams/:examId/attempts", async (req, res) => {
     .insert(attemptsTable)
     .values({
       examId,
+      userId,
+      userName,
       total: ordered.length,
       score: 0,
       status: "in_progress",
@@ -155,9 +178,13 @@ router.post("/exams/:examId/attempts", async (req, res) => {
   }
 
   const aqInserts = ordered.map((q, i) => {
-    const indices = q.options.map((_, idx) => idx);
-    const order = shuffleOpts ? shuffle(indices) : indices;
-    const correctInOrder = order.indexOf(q.correctIndex);
+    const isEssay = q.questionType === "essay";
+    const indices = isEssay ? [] : q.options.map((_, idx) => idx);
+    const order = shuffleOpts && !isEssay ? shuffle(indices) : indices;
+    const correctInOrder =
+      !isEssay && q.correctIndex !== null && q.correctIndex !== undefined
+        ? order.indexOf(q.correctIndex)
+        : null;
     return {
       attemptId: attempt.id,
       questionId: q.id,
@@ -184,10 +211,13 @@ router.get("/exams/:examId/attempts", async (req, res) => {
       examId: attemptsTable.examId,
       examTitle: examsTable.title,
       examCourseCode: examsTable.courseCode,
+      userId: attemptsTable.userId,
+      userName: attemptsTable.userName,
       startedAt: attemptsTable.startedAt,
       finishedAt: attemptsTable.finishedAt,
       score: attemptsTable.score,
       total: attemptsTable.total,
+      elapsedSeconds: attemptsTable.elapsedSeconds,
       status: attemptsTable.status,
     })
     .from(attemptsTable)
@@ -230,46 +260,81 @@ router.post("/attempts/:attemptId/answers", async (req, res) => {
     return;
   }
 
-  const [aq] = await db
-    .select()
+  const [aqWithQ] = await db
+    .select({
+      aq: attemptQuestionsTable,
+      questionType: questionsTable.questionType,
+    })
     .from(attemptQuestionsTable)
+    .innerJoin(questionsTable, eq(attemptQuestionsTable.questionId, questionsTable.id))
     .where(eq(attemptQuestionsTable.id, body.attemptQuestionId));
-  if (!aq || aq.attemptId !== attemptId) {
+
+  if (!aqWithQ || aqWithQ.aq.attemptId !== attemptId) {
     res.status(404).json({ error: "Attempt question not found" });
     return;
   }
-  if (aq.selectedIndex !== null) {
+
+  const { aq, questionType } = aqWithQ;
+  const isEssay = questionType === "essay";
+
+  // Already-answered guard
+  if (isEssay ? aq.essayAnswer !== null : aq.selectedIndex !== null) {
     res.status(409).json({ error: "Question already answered" });
     return;
   }
 
-  const isCorrect = body.selectedIndex === aq.correctIndex;
-  await db
-    .update(attemptQuestionsTable)
-    .set({
-      selectedIndex: body.selectedIndex,
-      isCorrect: isCorrect ? 1 : 0,
-      answeredAt: new Date(),
-    })
-    .where(eq(attemptQuestionsTable.id, aq.id));
-
-  let newScore = attempt.score;
-  if (isCorrect) {
-    newScore += 1;
+  if (isEssay) {
+    const essay = body.essayAnswer?.trim() ?? "";
     await db
-      .update(attemptsTable)
-      .set({ score: newScore })
-      .where(eq(attemptsTable.id, attemptId));
-  }
+      .update(attemptQuestionsTable)
+      .set({ essayAnswer: essay, answeredAt: new Date() })
+      .where(eq(attemptQuestionsTable.id, aq.id));
 
-  res.json({
-    attemptQuestionId: aq.id,
-    selectedIndex: body.selectedIndex,
-    correctIndex: aq.correctIndex,
-    isCorrect,
-    score: newScore,
-    total: attempt.total,
-  });
+    res.json({
+      attemptQuestionId: aq.id,
+      questionType: "essay",
+      selectedIndex: null,
+      essayAnswer: essay,
+      correctIndex: null,
+      isCorrect: null,
+      score: attempt.score,
+      total: attempt.total,
+    });
+  } else {
+    if (body.selectedIndex === null || body.selectedIndex === undefined) {
+      res.status(400).json({ error: "selectedIndex required for MCQ questions" });
+      return;
+    }
+    const isCorrect = body.selectedIndex === aq.correctIndex;
+    await db
+      .update(attemptQuestionsTable)
+      .set({
+        selectedIndex: body.selectedIndex,
+        isCorrect: isCorrect ? 1 : 0,
+        answeredAt: new Date(),
+      })
+      .where(eq(attemptQuestionsTable.id, aq.id));
+
+    let newScore = attempt.score;
+    if (isCorrect) {
+      newScore += 1;
+      await db
+        .update(attemptsTable)
+        .set({ score: newScore })
+        .where(eq(attemptsTable.id, attemptId));
+    }
+
+    res.json({
+      attemptQuestionId: aq.id,
+      questionType: "mcq",
+      selectedIndex: body.selectedIndex,
+      essayAnswer: null,
+      correctIndex: aq.correctIndex,
+      isCorrect,
+      score: newScore,
+      total: attempt.total,
+    });
+  }
 });
 
 router.post("/attempts/:attemptId/finish", async (req, res) => {
@@ -283,9 +348,12 @@ router.post("/attempts/:attemptId/finish", async (req, res) => {
     return;
   }
   if (attempt.status !== "finished") {
+    const finishedAt = new Date();
+    const elapsedSeconds =
+      (finishedAt.getTime() - attempt.startedAt.getTime()) / 1000;
     await db
       .update(attemptsTable)
-      .set({ status: "finished", finishedAt: new Date() })
+      .set({ status: "finished", finishedAt, elapsedSeconds })
       .where(eq(attemptsTable.id, attemptId));
   }
   const detail = await loadAttemptDetail(attemptId);

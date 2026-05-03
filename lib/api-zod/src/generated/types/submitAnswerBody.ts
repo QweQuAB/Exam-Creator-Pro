@@ -9,5 +9,6 @@
 export interface SubmitAnswerBody {
   attemptQuestionId: string;
   /** @minimum 0 */
-  selectedIndex: number;
+  selectedIndex?: number | null;
+  essayAnswer?: string | null;
 }

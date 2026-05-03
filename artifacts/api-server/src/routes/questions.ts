@@ -12,10 +12,21 @@ const router: IRouter = Router();
 router.post("/exams/:examId/questions", async (req, res) => {
   const examId = req.params.examId;
   const body = CreateQuestionBody.parse(req.body);
+  const qType = body.questionType ?? "mcq";
 
-  if (body.correctIndex < 0 || body.correctIndex >= body.options.length) {
-    res.status(400).json({ error: "correctIndex out of range" });
-    return;
+  if (qType === "mcq") {
+    if (!body.options || body.options.length < 2) {
+      res.status(400).json({ error: "MCQ questions require at least 2 options." });
+      return;
+    }
+    if (body.correctIndex === null || body.correctIndex === undefined) {
+      res.status(400).json({ error: "MCQ questions require a correctIndex." });
+      return;
+    }
+    if (body.correctIndex < 0 || body.correctIndex >= body.options.length) {
+      res.status(400).json({ error: "correctIndex out of range" });
+      return;
+    }
   }
 
   const [exam] = await db
@@ -38,10 +49,11 @@ router.post("/exams/:examId/questions", async (req, res) => {
     .insert(questionsTable)
     .values({
       examId,
+      questionType: qType,
       topic: body.topic ?? null,
       prompt: body.prompt,
-      options: body.options,
-      correctIndex: body.correctIndex,
+      options: qType === "essay" ? [] : (body.options ?? []),
+      correctIndex: qType === "essay" ? null : (body.correctIndex ?? null),
       explanation: body.explanation ?? null,
       reference: body.reference ?? null,
       repeatNote: body.repeatNote ?? null,
@@ -72,11 +84,22 @@ router.post("/exams/:examId/questions/bulk", async (req, res) => {
 
   for (let i = 0; i < body.questions.length; i++) {
     const q = body.questions[i]!;
-    if (q.correctIndex < 0 || q.correctIndex >= q.options.length) {
-      res.status(400).json({
-        error: `Question #${i + 1}: correctIndex ${q.correctIndex} is out of range for ${q.options.length} options.`,
-      });
-      return;
+    const qType = q.questionType ?? "mcq";
+    if (qType === "mcq") {
+      if (!q.options || q.options.length < 2) {
+        res.status(400).json({ error: `Question #${i + 1}: MCQ requires at least 2 options.` });
+        return;
+      }
+      if (q.correctIndex === null || q.correctIndex === undefined) {
+        res.status(400).json({ error: `Question #${i + 1}: MCQ requires correctIndex.` });
+        return;
+      }
+      if (q.correctIndex < 0 || q.correctIndex >= q.options.length) {
+        res.status(400).json({
+          error: `Question #${i + 1}: correctIndex ${q.correctIndex} is out of range for ${q.options.length} options.`,
+        });
+        return;
+      }
     }
   }
 
@@ -87,21 +110,23 @@ router.post("/exams/:examId/questions/bulk", async (req, res) => {
     .from(questionsTable)
     .where(eq(questionsTable.examId, examId));
 
-  const rows = body.questions.map((q, idx) => ({
-    examId,
-    topic: q.topic ?? null,
-    prompt: q.prompt,
-    options: q.options,
-    correctIndex: q.correctIndex,
-    explanation: q.explanation ?? null,
-    reference: q.reference ?? null,
-    repeatNote: q.repeatNote ?? null,
-    position: next + idx,
-  }));
-
-  const inserted = await db.insert(questionsTable).values(rows).returning({
-    id: questionsTable.id,
+  const rows = body.questions.map((q, idx) => {
+    const qType = q.questionType ?? "mcq";
+    return {
+      examId,
+      questionType: qType,
+      topic: q.topic ?? null,
+      prompt: q.prompt,
+      options: qType === "essay" ? [] : (q.options ?? []),
+      correctIndex: qType === "essay" ? null : (q.correctIndex ?? null),
+      explanation: q.explanation ?? null,
+      reference: q.reference ?? null,
+      repeatNote: q.repeatNote ?? null,
+      position: next + idx,
+    };
   });
+
+  const inserted = await db.insert(questionsTable).values(rows).returning({ id: questionsTable.id });
 
   await db
     .update(examsTable)
@@ -125,6 +150,7 @@ router.patch("/questions/:questionId", async (req, res) => {
   }
 
   const update: Record<string, unknown> = {};
+  if (body.questionType !== undefined) update.questionType = body.questionType;
   if (body.topic !== undefined) update.topic = body.topic;
   if (body.prompt !== undefined) update.prompt = body.prompt;
   if (body.options !== undefined) update.options = body.options;
@@ -134,12 +160,22 @@ router.patch("/questions/:questionId", async (req, res) => {
   if (body.repeatNote !== undefined) update.repeatNote = body.repeatNote;
   if (body.position !== undefined) update.position = body.position;
 
-  const finalOptions = (update.options as string[] | undefined) ?? existing.options;
-  const finalCorrect =
-    (update.correctIndex as number | undefined) ?? existing.correctIndex;
-  if (finalCorrect < 0 || finalCorrect >= finalOptions.length) {
-    res.status(400).json({ error: "correctIndex out of range" });
-    return;
+  const finalType = (update.questionType as string | undefined) ?? existing.questionType;
+  if (finalType === "mcq") {
+    const finalOptions = (update.options as string[] | undefined) ?? existing.options;
+    const finalCorrect = (update.correctIndex as number | null | undefined) ?? existing.correctIndex;
+    if (finalOptions.length < 2) {
+      res.status(400).json({ error: "MCQ requires at least 2 options." });
+      return;
+    }
+    if (finalCorrect === null || finalCorrect === undefined) {
+      res.status(400).json({ error: "MCQ requires a correctIndex." });
+      return;
+    }
+    if (finalCorrect < 0 || finalCorrect >= finalOptions.length) {
+      res.status(400).json({ error: "correctIndex out of range" });
+      return;
+    }
   }
 
   const [row] = await db

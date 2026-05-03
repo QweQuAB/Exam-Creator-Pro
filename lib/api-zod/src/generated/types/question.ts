@@ -5,14 +5,16 @@
  * ExamForge — exam generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { QuestionQuestionType } from "./questionQuestionType";
 
 export interface Question {
   id: string;
   examId: string;
+  questionType: QuestionQuestionType;
   topic?: string | null;
   prompt: string;
   options: string[];
-  correctIndex: number;
+  correctIndex?: number | null;
   explanation?: string | null;
   reference?: string | null;
   repeatNote?: string | null;

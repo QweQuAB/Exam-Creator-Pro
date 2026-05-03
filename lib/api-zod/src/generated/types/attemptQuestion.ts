@@ -5,6 +5,7 @@
  * ExamForge — exam generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { AttemptQuestionQuestionType } from "./attemptQuestionQuestionType";
 
 /**
  * Question rendered for a specific attempt; option order is shuffled per attempt.
@@ -12,6 +13,7 @@
 export interface AttemptQuestion {
   id: string;
   questionId: string;
+  questionType: AttemptQuestionQuestionType;
   topic?: string | null;
   prompt: string;
   options: string[];
@@ -20,6 +22,7 @@ export interface AttemptQuestion {
   repeatNote?: string | null;
   position: number;
   selectedIndex?: number | null;
+  essayAnswer?: string | null;
   correctIndex?: number | null;
   isAnswered: boolean;
   isCorrect?: boolean | null;

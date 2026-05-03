@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
   - name: exams
     description: Exam CRUD
   - name: questions
@@ -31,6 +33,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/user:
+    get:
+      tags: [auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCurrentAuthUserResponse"
+
+  /login:
+    get:
+      tags: [auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "302": { description: Redirect to OIDC }
+
+  /callback:
+    get:
+      tags: [auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      responses:
+        "302": { description: Redirect on completion }
+
+  /logout:
+    get:
+      tags: [auth]
+      operationId: logoutBrowserSession
+      summary: Clear session and begin OIDC logout
+      responses:
+        "302": { description: Redirect to OIDC logout }
+
+  /mobile-auth/token-exchange:
+    post:
+      tags: [auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExchangeMobileAuthorizationCodeBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExchangeMobileAuthorizationCodeResponse" }
+
+  /mobile-auth/logout:
+    post:
+      tags: [auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogoutMobileSessionResponse" }
 
   /dashboard:
     get:
@@ -161,6 +237,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExamStats" }
+
+  /exams/{examId}/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [exams]
+      summary: Fastest finishers leaderboard for an exam
+      parameters:
+        - in: path
+          name: examId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaderboardResponse" }
 
   /exams/{examId}/questions:
     post:
@@ -302,7 +398,7 @@ paths:
     post:
       operationId: submitAnswer
       tags: [attempts]
-      summary: Submit an answer for one question in an attempt
+      summary: Submit an answer (MCQ selection or essay text) for one question
       parameters:
         - in: path
           name: attemptId
@@ -338,12 +434,67 @@ paths:
               schema: { $ref: "#/components/schemas/AttemptDetail" }
 
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — `Bearer <sid>`.
+      schema: { type: string }
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema: { type: string }
+
   schemas:
     HealthStatus:
       type: object
       properties:
         status: { type: string }
       required: [status]
+
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: [string, "null"] }
+        firstName: { type: [string, "null"] }
+        lastName: { type: [string, "null"] }
+        profileImageUrl: { type: [string, "null"] }
+
+    GetCurrentAuthUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+
+    ExchangeMobileAuthorizationCodeBody:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code: { type: string, minLength: 1 }
+        code_verifier: { type: string, minLength: 1 }
+        redirect_uri: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        nonce: { type: string, minLength: 1 }
+
+    ExchangeMobileAuthorizationCodeResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+
+    LogoutMobileSessionResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
 
     Exam:
       type: object
@@ -399,34 +550,35 @@ components:
       properties:
         id: { type: string }
         examId: { type: string }
+        questionType: { type: string, enum: [mcq, essay] }
         topic: { type: string, nullable: true }
         prompt: { type: string }
         options:
           type: array
           items: { type: string }
-        correctIndex: { type: integer }
+        correctIndex: { type: integer, nullable: true }
         explanation: { type: string, nullable: true }
         reference: { type: string, nullable: true }
         repeatNote: { type: string, nullable: true }
         position: { type: integer }
         createdAt: { type: string, format: date-time }
-      required: [id, examId, prompt, options, correctIndex, position, createdAt]
+      required: [id, examId, questionType, prompt, options, position, createdAt]
 
     CreateQuestionBody:
       type: object
       properties:
+        questionType: { type: string, enum: [mcq, essay] }
         topic: { type: string, nullable: true }
         prompt: { type: string, minLength: 1 }
         options:
           type: array
           items: { type: string, minLength: 1 }
-          minItems: 2
           maxItems: 8
-        correctIndex: { type: integer, minimum: 0 }
+        correctIndex: { type: integer, minimum: 0, nullable: true }
         explanation: { type: string, nullable: true }
         reference: { type: string, nullable: true }
         repeatNote: { type: string, nullable: true }
-      required: [prompt, options, correctIndex]
+      required: [prompt]
 
     BulkImportQuestionsBody:
       type: object
@@ -448,14 +600,14 @@ components:
     UpdateQuestionBody:
       type: object
       properties:
+        questionType: { type: string, enum: [mcq, essay] }
         topic: { type: string, nullable: true }
         prompt: { type: string, minLength: 1 }
         options:
           type: array
           items: { type: string, minLength: 1 }
-          minItems: 2
           maxItems: 8
-        correctIndex: { type: integer, minimum: 0 }
+        correctIndex: { type: integer, minimum: 0, nullable: true }
         explanation: { type: string, nullable: true }
         reference: { type: string, nullable: true }
         repeatNote: { type: string, nullable: true }
@@ -466,6 +618,7 @@ components:
       properties:
         shuffleQuestions: { type: boolean, default: true }
         shuffleOptions: { type: boolean, default: true }
+        userName: { type: string, nullable: true }
 
     AttemptQuestion:
       type: object
@@ -473,6 +626,7 @@ components:
       properties:
         id: { type: string }
         questionId: { type: string }
+        questionType: { type: string, enum: [mcq, essay] }
         topic: { type: string, nullable: true }
         prompt: { type: string }
         options:
@@ -483,10 +637,11 @@ components:
         repeatNote: { type: string, nullable: true }
         position: { type: integer }
         selectedIndex: { type: integer, nullable: true }
+        essayAnswer: { type: string, nullable: true }
         correctIndex: { type: integer, nullable: true }
         isAnswered: { type: boolean }
         isCorrect: { type: boolean, nullable: true }
-      required: [id, questionId, prompt, options, position, isAnswered]
+      required: [id, questionId, questionType, prompt, options, position, isAnswered]
 
     AttemptDetail:
       type: object
@@ -495,11 +650,14 @@ components:
         examId: { type: string }
         examTitle: { type: string }
         examCourseCode: { type: string, nullable: true }
+        userId: { type: string, nullable: true }
+        userName: { type: string, nullable: true }
         startedAt: { type: string, format: date-time }
         finishedAt: { type: string, format: date-time, nullable: true }
         score: { type: integer }
         total: { type: integer }
         scorePct: { type: number }
+        elapsedSeconds: { type: number, nullable: true }
         status: { type: string, enum: [in_progress, finished] }
         questions:
           type: array
@@ -513,11 +671,14 @@ components:
         examId: { type: string }
         examTitle: { type: string }
         examCourseCode: { type: string, nullable: true }
+        userId: { type: string, nullable: true }
+        userName: { type: string, nullable: true }
         startedAt: { type: string, format: date-time }
         finishedAt: { type: string, format: date-time, nullable: true }
         score: { type: integer }
         total: { type: integer }
         scorePct: { type: number }
+        elapsedSeconds: { type: number, nullable: true }
         status: { type: string, enum: [in_progress, finished] }
       required: [id, examId, examTitle, startedAt, score, total, scorePct, status]
 
@@ -525,19 +686,45 @@ components:
       type: object
       properties:
         attemptQuestionId: { type: string }
-        selectedIndex: { type: integer, minimum: 0 }
-      required: [attemptQuestionId, selectedIndex]
+        selectedIndex: { type: integer, minimum: 0, nullable: true }
+        essayAnswer: { type: string, nullable: true }
+      required: [attemptQuestionId]
 
     SubmitAnswerResult:
       type: object
       properties:
         attemptQuestionId: { type: string }
-        selectedIndex: { type: integer }
-        correctIndex: { type: integer }
-        isCorrect: { type: boolean }
+        questionType: { type: string, enum: [mcq, essay] }
+        selectedIndex: { type: integer, nullable: true }
+        essayAnswer: { type: string, nullable: true }
+        correctIndex: { type: integer, nullable: true }
+        isCorrect: { type: boolean, nullable: true }
         score: { type: integer }
         total: { type: integer }
-      required: [attemptQuestionId, selectedIndex, correctIndex, isCorrect, score, total]
+      required: [attemptQuestionId, questionType, score, total]
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank: { type: integer }
+        attemptId: { type: string }
+        userId: { type: string, nullable: true }
+        userName: { type: string, nullable: true }
+        score: { type: integer }
+        total: { type: integer }
+        scorePct: { type: number }
+        elapsedSeconds: { type: number }
+        finishedAt: { type: string, format: date-time }
+      required: [rank, attemptId, score, total, scorePct, elapsedSeconds, finishedAt]
+
+    LeaderboardResponse:
+      type: object
+      properties:
+        examId: { type: string }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/LeaderboardEntry" }
+      required: [examId, entries]
 
     ExamStats:
       type: object
@@ -587,3 +774,18 @@ components:
               avgScorePct: { type: number, nullable: true }
             required: [examId, title, attemptCount]
       required: [examCount, questionCount, attemptCount, finishedAttemptCount, topExams]
+
+    GetRecentAttemptsQueryParams:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50 }
+
+    ListExamsQueryParams:
+      type: object
+      properties:
+        search: { type: string }
+
+    ListAttemptsForExamQueryParams:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50 }

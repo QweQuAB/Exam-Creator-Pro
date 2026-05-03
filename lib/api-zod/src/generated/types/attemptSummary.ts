@@ -12,10 +12,13 @@ export interface AttemptSummary {
   examId: string;
   examTitle: string;
   examCourseCode?: string | null;
+  userId?: string | null;
+  userName?: string | null;
   startedAt: Date;
   finishedAt?: Date | null;
   score: number;
   total: number;
   scorePct: number;
+  elapsedSeconds?: number | null;
   status: AttemptSummaryStatus;
 }

@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   index,
+  real,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -13,6 +14,8 @@ export const attemptStatusEnum = pgEnum("attempt_status", [
   "in_progress",
   "finished",
 ]);
+
+export const questionTypeEnum = pgEnum("question_type", ["mcq", "essay"]);
 
 export const examsTable = pgTable("exams", {
   id: text("id")
@@ -39,10 +42,11 @@ export const questionsTable = pgTable(
     examId: text("exam_id")
       .notNull()
       .references(() => examsTable.id, { onDelete: "cascade" }),
+    questionType: questionTypeEnum("question_type").notNull().default("mcq"),
     topic: text("topic"),
     prompt: text("prompt").notNull(),
     options: jsonb("options").notNull().$type<string[]>(),
-    correctIndex: integer("correct_index").notNull(),
+    correctIndex: integer("correct_index"),
     explanation: text("explanation"),
     reference: text("reference"),
     repeatNote: text("repeat_note"),
@@ -63,9 +67,12 @@ export const attemptsTable = pgTable(
     examId: text("exam_id")
       .notNull()
       .references(() => examsTable.id, { onDelete: "cascade" }),
+    userId: text("user_id"),
+    userName: text("user_name"),
     status: attemptStatusEnum("status").notNull().default("in_progress"),
     score: integer("score").notNull().default(0),
     total: integer("total").notNull().default(0),
+    elapsedSeconds: real("elapsed_seconds"),
     startedAt: timestamp("started_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -90,9 +97,11 @@ export const attemptQuestionsTable = pgTable(
     /** indices into the original question.options, in the order shown to the user */
     optionOrder: jsonb("option_order").notNull().$type<number[]>(),
     /** correctIndex remapped into the shuffled order */
-    correctIndex: integer("correct_index").notNull(),
+    correctIndex: integer("correct_index"),
     /** what the user picked, in the shuffled order */
     selectedIndex: integer("selected_index"),
+    /** written answer for essay questions */
+    essayAnswer: text("essay_answer"),
     isCorrect: integer("is_correct"),
     answeredAt: timestamp("answered_at", { withTimezone: true }),
   },
