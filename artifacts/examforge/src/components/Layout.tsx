@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { BookOpen, Plus, LogIn, LogOut, User } from "lucide-react";
+import { BookOpen, Plus, LogIn, LogOut, User, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,9 +13,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const THEME_KEY = "examforge_theme";
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, isLoading, isAuthenticated, login, logout } = useAuth();
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const nextTheme = saved === "dark" || saved === "light" ? saved : prefersDark ? "dark" : "light";
+    setTheme(nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    window.localStorage.setItem(THEME_KEY, nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  };
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "User";
   const initials = displayName
@@ -44,6 +62,9 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
             <Link href="/exams/new" className="hidden md:inline-flex">
               <Button size="sm" variant="outline" className="gap-2 border-accent text-accent hover:bg-accent hover:text-accent-foreground font-semibold">
                 <Plus className="h-4 w-4" />
